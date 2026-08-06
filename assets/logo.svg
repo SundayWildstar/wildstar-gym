@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 132">
+  <!-- Wildstar: a wild, misprinted 7-pronged star -->
+  <!-- red ghost star, offset + rotated like a bad screen print -->
+  <g transform="translate(7 5) rotate(9 60 60)">
+    <polygon fill="#c0392b" points="
+      60,4 69.5,40.2 100.7,27.6 83.4,54.7 115.6,72.7 76.4,73.1 81.7,105.1
+      60,83 36.1,109.6 42.8,73.7 8.3,71.8 36.6,54.7 16.2,25.1 50.5,40.2" />
+  </g>
+  <!-- chalk star on top, tilted the other way -->
+  <g transform="rotate(-7 60 60)">
+    <polygon fill="#f0eee7" stroke="#212429" stroke-width="2.5" stroke-linejoin="round" points="
+      60,4 69.5,40.2 100.7,27.6 83.4,54.7 115.6,72.7 76.4,73.1 81.7,105.1
+      60,83 36.1,109.6 42.8,73.7 8.3,71.8 36.6,54.7 16.2,25.1 50.5,40.2" />
+  </g>
+  <!-- yellow spark -->
+  <g transform="rotate(14 104 26)">
+    <polygon fill="#d9a413" points="104,12 107.5,22.5 118,26 107.5,29.5 104,40 100.5,29.5 90,26 100.5,22.5" />
+  </g>
+</svg>
