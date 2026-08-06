@@ -485,6 +485,15 @@ h3 {
   color: var(--ink-soft);
   margin-bottom: 14px;
 }
+.modal-photos { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.modal-photo {
+  width: 96px; height: 96px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .howto-steps { padding-left: 20px; }
 .howto-steps li { margin-bottom: 10px; }
 .howto-steps li::marker { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); }

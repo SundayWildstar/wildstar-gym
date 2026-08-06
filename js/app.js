@@ -413,6 +413,11 @@ function openHowto(name) {
   const old = document.getElementById("howto-modal");
   if (old) old.remove();
 
+  const photos = ex && ex.equip.length
+    ? `<div class="modal-photos">${ex.equip.map(id =>
+        `<img class="modal-photo" src="assets/img/${id}.jpg" alt="${esc(EQUIPMENT.find(q => q.id === id)?.name || "")}" loading="lazy" onerror="this.remove()">`).join("")}</div>`
+    : "";
+
   const wrap = document.createElement("div");
   wrap.id = "howto-modal";
   wrap.className = "modal-overlay";
@@ -422,6 +427,7 @@ function openHowto(name) {
       <p class="eyebrow">How to</p>
       <h3>${esc(name)}</h3>
       <p class="modal-equip">${esc(equipNames)}</p>
+      ${photos}
       ${steps
         ? `<ol class="howto-steps">${steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>`
         : `<p>${esc(ex?.cue || "Move with control, full range of motion, and stop the set while your form is still good.")}</p>`}
