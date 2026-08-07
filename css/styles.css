@@ -400,6 +400,33 @@ h3 {
 
 .day-complete summary .day-count { color: var(--plate-green); font-weight: 600; }
 .day-today { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.day-missed summary .day-count { color: var(--plate-yellow); font-weight: 600; }
+
+/* Unfinished items from past days */
+.ex-missed { background: rgba(217, 164, 19, 0.13); }
+.ex-missed td:first-child { border-left: 3px solid var(--plate-yellow); }
+.ex-missed .ex-check-cell { padding-left: 6px; }
+
+.carryover {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--line);
+}
+.carryover-head {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--plate-yellow);
+  margin-bottom: 6px;
+}
+.carry-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-left: 8px;
+  white-space: nowrap;
+}
 .ex-name { font-weight: 500; }
 .ex-name .modality-dot { margin-right: 8px; }
 .main-lift .ex-name { font-weight: 700; }

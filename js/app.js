@@ -474,13 +474,17 @@ function renderDashboard(p, tab) {
     log[blockIdx] = cb.checked;
     save();
 
-    // Update the row, counter and card state in place (keeps the card open).
-    const row = document.querySelector(`[data-row="${dayIdx}-${blockIdx}"]`);
-    if (row) row.classList.toggle("ex-checked", cb.checked);
+    // Update every copy of this item in place (day card + carried-over row).
+    document.querySelectorAll(`[data-row="${dayIdx}-${blockIdx}"]`).forEach(row =>
+      row.classList.toggle("ex-checked", cb.checked));
+    document.querySelectorAll(`.ex-done[data-day="${dayIdx}"][data-i="${blockIdx}"]`).forEach(other => {
+      other.checked = cb.checked;
+    });
     const done = log.filter(Boolean).length;
     const complete = done === n;
     const counter = document.querySelector(`[data-count="${dayIdx}"]`);
-    if (counter) counter.textContent = complete ? "✓ done" : `${done}/${n} done`;
+    if (counter && !counter.closest(".day-missed")) counter.textContent = complete ? "✓ done" : `${done}/${n} done`;
+    else if (counter) counter.textContent = complete ? "✓ done" : `${n - done} left over`;
     const card = document.querySelector(`.day-card[data-day="${dayIdx}"]`);
     if (card) card.classList.toggle("day-complete", complete);
   });
@@ -562,6 +566,36 @@ function trainingTab(p) {
       <p class="today-line">Next up: ${esc(plan.days[sched.nextIdx].title)} on ${fmtDate(sched.next)}</p></div>`;
   }
 
+  // Unfinished exercises from earlier this week roll onto the current day.
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const carry = [];
+  if (!sched.futureStart) plan.days.forEach((day, i) => {
+    if (sched.dates[i] >= today0) return;
+    const iso = isoOf(sched.dates[i]);
+    const log = dayLog(p, iso, day.blocks.length);
+    day.blocks.forEach((b, bi) => {
+      if (!log[bi]) carry.push({ dayIdx: i, iso, bi, n: day.blocks.length, b, date: sched.dates[i] });
+    });
+  });
+  const carryTarget = sched.todayIdx >= 0 ? sched.todayIdx : sched.nextIdx;
+  const carrySection = carry.length ? `
+    <div class="carryover">
+      <p class="carryover-head">Carried over — not finished on the day</p>
+      <table class="ex-table">
+        ${carry.map(c => `
+          <tr class="ex-missed" data-row="${c.dayIdx}-${c.bi}">
+            <td class="ex-check-cell">
+              <input type="checkbox" class="ex-done" aria-label="Mark ${esc(c.b.name)} done" data-iso="${c.iso}" data-day="${c.dayIdx}" data-i="${c.bi}" data-n="${c.n}">
+            </td>
+            <td class="ex-name">
+              <span class="modality-dot" style="background:${MODALITY_COLORS[c.b.modality]}"></span>
+              <button class="ex-link" data-ex="${esc(c.b.ref || c.b.name)}">${esc(c.b.name)}</button>
+              <span class="carry-tag">${fmtDate(c.date)}</span>
+            </td>
+          </tr>`).join("")}
+      </table>
+    </div>` : "";
+
   const dayCards = plan.days.map((day, i) => {
     const date = sched.dates[i];
     const iso = isoOf(date);
@@ -569,20 +603,22 @@ function trainingTab(p) {
     const done = log.filter(Boolean).length;
     const complete = done === day.blocks.length && day.blocks.length > 0;
     const isToday = i === sched.todayIdx;
+    const isPast = !sched.futureStart && date < today0;
 
     return `
-    <details class="day-card ${complete ? "day-complete" : ""} ${isToday ? "day-today" : ""}" data-day="${i}" ${isToday || (sched.todayIdx < 0 && i === sched.nextIdx && !sched.futureStart) || (sched.futureStart && i === 0) ? "open" : ""}>
+    <details class="day-card ${complete ? "day-complete" : ""} ${isToday ? "day-today" : ""} ${isPast && !complete ? "day-missed" : ""}" data-day="${i}" ${isToday || (sched.todayIdx < 0 && i === sched.nextIdx && !sched.futureStart) || (sched.futureStart && i === 0) ? "open" : ""}>
       <summary>
         <span class="stripe" aria-hidden="true">${plateStripe(day.blocks)}</span>
         <span class="day-label">${fmtDate(date)}${isToday ? " · today" : ""}</span>
         <span class="day-title">${esc(day.title)}</span>
-        <span class="day-count" data-count="${i}">${complete ? "✓ done" : `${done}/${day.blocks.length} done`}</span>
+        <span class="day-count" data-count="${i}">${complete ? "✓ done" : isPast ? `${day.blocks.length - done} left over` : `${done}/${day.blocks.length} done`}</span>
       </summary>
       <div class="day-body">
+        ${i === carryTarget ? carrySection : ""}
         <p class="warmup">Warm-up: ${esc(plan.warmup)}</p>
         <table class="ex-table">
           ${day.blocks.map((b, bi) => `
-            <tr class="${b.main ? "main-lift" : ""} ${log[bi] ? "ex-checked" : ""}" data-row="${i}-${bi}">
+            <tr class="${b.main ? "main-lift" : ""} ${log[bi] ? "ex-checked" : ""} ${isPast && !log[bi] ? "ex-missed" : ""}" data-row="${i}-${bi}">
               <td class="ex-check-cell">
                 <input type="checkbox" class="ex-done" aria-label="Mark ${esc(b.name)} done" data-iso="${iso}" data-day="${i}" data-i="${bi}" data-n="${day.blocks.length}" ${log[bi] ? "checked" : ""}>
               </td>
@@ -655,6 +691,36 @@ function programTab(p, prog) {
     </div>`;
   }
 
+  // Unfinished items from the past 7 days roll forward onto today's card.
+  const carry = [];
+  prog.days.forEach((day, i) => {
+    const date = addDays(start, i);
+    if (date >= today || (today - date) > 7 * 86400000) return;
+    const iso = isoOf(date);
+    const log = dayLog(p, iso, day.items.length);
+    day.items.forEach((it, bi) => {
+      if (!log[bi]) carry.push({ dayIdx: i, iso, bi, n: day.items.length, it, date });
+    });
+  });
+
+  const carrySection = carry.length ? `
+    <div class="carryover">
+      <p class="carryover-head">Carried over — not finished on the day</p>
+      <table class="ex-table">
+        ${carry.map(c => `
+          <tr class="ex-missed" data-row="${c.dayIdx}-${c.bi}">
+            <td class="ex-check-cell">
+              <input type="checkbox" class="ex-done" aria-label="Mark ${esc(c.it.t)} done" data-iso="${c.iso}" data-day="${c.dayIdx}" data-i="${c.bi}" data-n="${c.n}">
+            </td>
+            <td class="ex-name">
+              <span class="modality-dot" style="background:${KIND_COLORS[c.it.k]}"></span>
+              ${c.it.ref ? `<button class="ex-link" data-ex="${esc(c.it.ref)}">${esc(c.it.t)}</button>` : esc(c.it.t)}
+              <span class="carry-tag">Day ${c.dayIdx + 1} · ${fmtDate(c.date)}</span>
+            </td>
+          </tr>`).join("")}
+      </table>
+    </div>` : "";
+
   const weekOf = i => (i < 28 ? Math.floor(i / 7) : 4);
   let lastWeek = -1;
   const cards = prog.days.map((day, i) => {
@@ -664,6 +730,7 @@ function programTab(p, prog) {
     const done = log.filter(Boolean).length;
     const complete = done === day.items.length;
     const isToday = i === diff;
+    const isPast = date < today;
 
     let weekHead = "";
     if (weekOf(i) !== lastWeek) {
@@ -672,18 +739,19 @@ function programTab(p, prog) {
     }
 
     return `${weekHead}
-    <details class="day-card ${complete ? "day-complete" : ""} ${isToday ? "day-today" : ""}" data-day="${i}" ${isToday ? "open" : ""}>
+    <details class="day-card ${complete ? "day-complete" : ""} ${isToday ? "day-today" : ""} ${isPast && !complete ? "day-missed" : ""}" data-day="${i}" ${isToday ? "open" : ""}>
       <summary>
         <span class="stripe" aria-hidden="true">${progStripe(day.items)}</span>
         <span class="day-label">Day ${i + 1} · ${fmtDate(date)}${isToday ? " · today" : ""}</span>
         <span class="day-title">${esc(day.title)}</span>
-        <span class="day-count" data-count="${i}">${complete ? "✓ done" : `${done}/${day.items.length} done`}</span>
+        <span class="day-count" data-count="${i}">${complete ? "✓ done" : isPast ? `${day.items.length - done} left over` : `${done}/${day.items.length} done`}</span>
       </summary>
       <div class="day-body">
+        ${isToday ? carrySection : ""}
         ${day.note ? `<p class="warmup">${esc(day.note)}</p>` : ""}
         <table class="ex-table">
           ${day.items.map((it, bi) => `
-            <tr class="${log[bi] ? "ex-checked" : ""}" data-row="${i}-${bi}">
+            <tr class="${log[bi] ? "ex-checked" : ""} ${isPast && !log[bi] ? "ex-missed" : ""}" data-row="${i}-${bi}">
               <td class="ex-check-cell">
                 <input type="checkbox" class="ex-done" aria-label="Mark ${esc(it.t)} done" data-iso="${iso}" data-day="${i}" data-i="${bi}" data-n="${day.items.length}" ${log[bi] ? "checked" : ""}>
               </td>
