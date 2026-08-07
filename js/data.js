@@ -579,6 +579,26 @@ const HOWTO = {
   ],
 };
 
+// Rough per-serving calories for the food-log estimator. Matched by keyword;
+// a leading number multiplies ("2 eggs"). Deliberately coarse — estimates are
+// labelled as such in the UI.
+const FOOD_KCAL = {
+  "sweet potato": 180, "avocado toast": 250, "peanut butter": 190,
+  "protein shake": 200, "protein bar": 220, "cottage cheese": 110,
+  "greek yogurt": 150, "greek yoghurt": 150, "orange juice": 110,
+  "stir fry": 500, "banana": 105, "apple": 95, "egg": 75, "oatmeal": 300,
+  "oats": 300, "granola": 200, "yogurt": 150, "yoghurt": 150, "berries": 70,
+  "chicken": 300, "turkey": 250, "steak": 500, "beef": 400, "salmon": 400,
+  "tuna": 130, "shrimp": 150, "fish": 300, "tofu": 180, "rice": 250,
+  "pasta": 400, "potato": 160, "quinoa": 220, "lentil": 230, "beans": 120,
+  "toast": 80, "bread": 80, "sandwich": 450, "wrap": 500, "burger": 700,
+  "pizza": 570, "salad": 350, "soup": 300, "curry": 600, "smoothie": 250,
+  "shake": 200, "cereal": 250, "pancake": 175, "bacon": 45, "avocado": 160,
+  "cheese": 110, "hummus": 150, "nuts": 170, "chocolate": 150, "fruit": 80,
+  "vegetables": 50, "veggies": 50, "broccoli": 50, "milk": 120, "latte": 150,
+  "coffee": 5, "juice": 110, "beer": 150, "wine": 125,
+};
+
 // Goal definitions drive rep schemes, day structure and nutrition.
 const GOALS = {
   muscle:    { label: "Build muscle",        blurb: "Get visibly stronger and more muscular." },
