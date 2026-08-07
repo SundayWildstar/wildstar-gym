@@ -521,6 +521,19 @@ h3 {
   border-radius: 6px;
 }
 
+.login-modal .login-sub { color: var(--ink-soft); margin: 4px 0 14px; }
+.login-modal input {
+  width: 100%;
+  font: inherit;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+.login-modal input:focus { outline: none; border-color: var(--ink); }
+.login-modal .form-error { margin-top: 10px; }
+
 .howto-steps { padding-left: 20px; }
 .howto-steps li { margin-bottom: 10px; }
 .howto-steps li::marker { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); }

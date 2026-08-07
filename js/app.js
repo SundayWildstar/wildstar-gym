@@ -91,6 +91,76 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncPull().then(ok => { if (ok) route(); });
 });
 
+// Is a configured sync server reachable from here?
+async function syncAvailable() {
+  try {
+    const r = await fetch("api/store");
+    return r.status === 401 || r.ok;
+  } catch (e) { return false; }
+}
+
+// Validate a passcode, store it, and merge the shared data in.
+async function tryLogin(key) {
+  try {
+    const r = await fetch("api/store", { headers: { "X-Family-Key": key } });
+    if (r.status === 401) return "wrong";
+    if (!r.ok) return "unavailable";
+    localStorage.setItem(SYNC_KEY_LS, key);
+    const remote = await r.json();
+    if (remote) {
+      store = mergeStores(store, remote);
+      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    }
+    scheduleSyncPush(); // first device seeds the shared store
+    return "ok";
+  } catch (e) { return "unavailable"; }
+}
+
+function showLogin(prefillError) {
+  const old = document.getElementById("login-modal");
+  if (old) old.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "login-modal";
+  wrap.className = "modal-overlay";
+  wrap.innerHTML = `
+    <div class="modal login-modal" role="dialog" aria-modal="true" aria-label="Log in">
+      <p class="eyebrow">Wildstar home gym</p>
+      <h3>Log in</h3>
+      <p class="login-sub">Enter the family passcode to load everyone's plans and keep this device in sync.</p>
+      <input id="login-key" type="password" placeholder="Family passcode" autocomplete="current-password">
+      <p class="form-error" id="login-error" ${prefillError ? "" : "hidden"}>${esc(prefillError || "")}</p>
+      <div class="form-actions">
+        <button class="btn ghost" id="login-skip">Not now</button>
+        <button class="btn primary" id="login-go">Log in</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("#login-key");
+  input.focus();
+
+  const submit = async () => {
+    const key = input.value.trim();
+    if (!key) return;
+    const go = wrap.querySelector("#login-go");
+    go.textContent = "Checking…";
+    const res = await tryLogin(key);
+    if (res === "ok") { wrap.remove(); route(); return; }
+    localStorage.removeItem(SYNC_KEY_LS);
+    go.textContent = "Log in";
+    const err = wrap.querySelector("#login-error");
+    err.hidden = false;
+    err.textContent = res === "wrong"
+      ? "That's not the passcode — try again."
+      : "Can't reach the sync server right now — try again later.";
+  };
+  wrap.querySelector("#login-go").addEventListener("click", submit);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+  wrap.querySelector("#login-skip").addEventListener("click", () => {
+    sessionStorage.setItem("wildstar-login-skip", "1");
+    wrap.remove();
+  });
+}
+
 // Keep multiple open tabs in sync: when another tab saves, reload and re-render
 // (unless mid-onboarding here, where a re-render would eat unsaved typing).
 window.addEventListener("storage", ev => {
@@ -218,25 +288,23 @@ function renderLocker() {
       </div>
       <footer class="locker-foot">
         <a class="quiet-link" href="#/gym">Gym equipment (${EQUIPMENT.filter(e => store.equipment[e.id]).length} items)</a>
-        <button class="quiet-link as-btn" id="sync-toggle">Device sync: ${getSyncKey() ? "on" : "off"}</button>
+        ${getSyncKey()
+          ? `<button class="quiet-link as-btn" id="sync-out">Sign out</button>`
+          : `<button class="quiet-link as-btn" id="sync-in">Log in</button>`}
       </footer>
     </div>`;
 
-  document.getElementById("sync-toggle").addEventListener("click", async () => {
-    if (getSyncKey()) {
-      if (confirm("Turn off sync on this device? Your data stays here, it just stops sharing.")) {
-        localStorage.removeItem(SYNC_KEY_LS);
-        renderLocker();
-      }
-      return;
+  const signOut = document.getElementById("sync-out");
+  if (signOut) signOut.addEventListener("click", () => {
+    if (confirm("Sign out of sync on this device? Your data stays here, it just stops sharing.")) {
+      localStorage.removeItem(SYNC_KEY_LS);
+      renderLocker();
     }
-    const k = prompt("Enter the family passcode to share progress across devices:");
-    if (!k || !k.trim()) return;
-    localStorage.setItem(SYNC_KEY_LS, k.trim());
-    const ok = await syncPull();
-    scheduleSyncPush();
-    renderLocker();
-    if (!ok) alert("Couldn't reach the sync server from here. It works on the live site once sync is configured in Vercel — this device will connect automatically then.");
+  });
+  const signIn = document.getElementById("sync-in");
+  if (signIn) signIn.addEventListener("click", () => {
+    sessionStorage.removeItem("wildstar-login-skip");
+    showLogin();
   });
 }
 
@@ -870,4 +938,13 @@ function renderEquipmentPage() {
 }
 
 route();
-syncPull().then(ok => { if (ok) route(); });
+(async () => {
+  if (getSyncKey()) {
+    const ok = await syncPull();
+    if (ok) route();
+    return;
+  }
+  // No passcode on this device yet: if a sync server is out there, ask to log in.
+  if (sessionStorage.getItem("wildstar-login-skip")) return;
+  if (await syncAvailable()) showLogin();
+})();
