@@ -287,7 +287,7 @@ function renderLocker() {
         </a>
       </div>
       <footer class="locker-foot">
-        <a class="quiet-link" href="#/gym">Gym equipment (${EQUIPMENT.filter(e => store.equipment[e.id]).length} items)</a>
+        <a class="equip-btn" href="#/gym">Gym equipment <span class="equip-count">${EQUIPMENT.filter(e => store.equipment[e.id]).length}</span></a>
         ${getSyncKey()
           ? `<button class="quiet-link as-btn" id="sync-out">Sign out</button>`
           : `<button class="quiet-link as-btn" id="sync-in">Log in</button>`}

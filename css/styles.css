@@ -179,7 +179,40 @@ h3 {
 .nameplate-add .nameplate-goal { color: #7c7f76; }
 .nameplate-add:hover { border-color: var(--chalk-dim); color: var(--chalk); transform: translateY(-2px); box-shadow: none; }
 
-.locker-foot { margin-top: auto; padding-top: 48px; }
+.locker-foot {
+  margin-top: auto;
+  padding-top: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.equip-btn {
+  font-family: var(--display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 16px;
+  color: var(--chalk);
+  text-decoration: none;
+  border: 1.5px solid #4a4f56;
+  border-radius: 4px;
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.equip-btn:hover { border-color: var(--chalk); transform: translateY(-1px); }
+.equip-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--graphite);
+  background: var(--chalk-dim);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
 
 /* ── Cards & forms ── */
 
