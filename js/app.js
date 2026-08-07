@@ -16,14 +16,80 @@ function loadStore() {
       const s = JSON.parse(raw);
       s.equipment = { ...defaultEquipment(), ...(s.equipment || {}) };
       s.people = s.people || [];
+      s.deletedIds = s.deletedIds || [];
       return s;
     }
   } catch (e) { /* fall through to fresh store */ }
-  return { people: [], equipment: defaultEquipment() };
+  return { people: [], equipment: defaultEquipment(), deletedIds: [] };
 }
 
 let store = loadStore();
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function save() {
+  store.updatedAt = Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  scheduleSyncPush();
+}
+
+// ── Cross-device sync (Vercel /api/store + family passcode) ──────────────────
+
+const SYNC_KEY_LS = "wildstar-sync-key";
+function getSyncKey() { return localStorage.getItem(SYNC_KEY_LS) || ""; }
+
+// Merge two stores: newer store wins overall, but check-off ticks from BOTH
+// devices are kept, people missing from one side are added, deletions stick.
+function mergeStores(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const winner = (a.updatedAt || 0) >= (b.updatedAt || 0) ? a : b;
+  const loser = winner === a ? b : a;
+  const deletedIds = [...new Set([...(a.deletedIds || []), ...(b.deletedIds || [])])];
+  const people = (winner.people || []).filter(p => !deletedIds.includes(p.id)).map(p => ({ ...p, log: { ...(p.log || {}) } }));
+  for (const lp of (loser.people || [])) {
+    if (deletedIds.includes(lp.id)) continue;
+    const wp = people.find(x => x.id === lp.id);
+    if (!wp) { people.push({ ...lp }); continue; }
+    for (const [iso, arr] of Object.entries(lp.log || {})) {
+      const cur = wp.log[iso] || [];
+      wp.log[iso] = Array.from({ length: Math.max(cur.length, arr.length) }, (_, i) => !!(cur[i] || arr[i]));
+    }
+  }
+  return { ...winner, people, deletedIds, equipment: { ...defaultEquipment(), ...(winner.equipment || {}) } };
+}
+
+async function syncPull() {
+  const key = getSyncKey();
+  if (!key) return false;
+  try {
+    const r = await fetch("api/store", { headers: { "X-Family-Key": key } });
+    if (!r.ok) return false;
+    const remote = await r.json();
+    if (!remote) { scheduleSyncPush(); return true; }
+    store = mergeStores(store, remote);
+    // Persist without bumping updatedAt (this isn't a local edit).
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    return true;
+  } catch (e) { return false; }
+}
+
+let syncPushTimer = null;
+function scheduleSyncPush() {
+  if (!getSyncKey()) return;
+  clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(async () => {
+    try {
+      await fetch("api/store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Family-Key": getSyncKey() },
+        body: JSON.stringify(store),
+      });
+    } catch (e) { /* offline is fine — next save retries */ }
+  }, 800);
+}
+
+// Re-pull whenever the app comes back into view (e.g. reopening on your phone).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncPull().then(ok => { if (ok) route(); });
+});
 
 // Keep multiple open tabs in sync: when another tab saves, reload and re-render
 // (unless mid-onboarding here, where a re-render would eat unsaved typing).
@@ -152,8 +218,26 @@ function renderLocker() {
       </div>
       <footer class="locker-foot">
         <a class="quiet-link" href="#/gym">Gym equipment (${EQUIPMENT.filter(e => store.equipment[e.id]).length} items)</a>
+        <button class="quiet-link as-btn" id="sync-toggle">Device sync: ${getSyncKey() ? "on" : "off"}</button>
       </footer>
     </div>`;
+
+  document.getElementById("sync-toggle").addEventListener("click", async () => {
+    if (getSyncKey()) {
+      if (confirm("Turn off sync on this device? Your data stays here, it just stops sharing.")) {
+        localStorage.removeItem(SYNC_KEY_LS);
+        renderLocker();
+      }
+      return;
+    }
+    const k = prompt("Enter the family passcode to share progress across devices:");
+    if (!k || !k.trim()) return;
+    localStorage.setItem(SYNC_KEY_LS, k.trim());
+    const ok = await syncPull();
+    scheduleSyncPush();
+    renderLocker();
+    if (!ok) alert("Couldn't reach the sync server from here. It works on the live site once sync is configured in Vercel — this device will connect automatically then.");
+  });
 }
 
 // ── Onboarding wizard ────────────────────────────────────────────────────────
@@ -362,6 +446,7 @@ function renderDashboard(p, tab) {
   document.getElementById("btn-delete").addEventListener("click", () => {
     if (confirm(`Remove ${p.name}'s profile and plan? This can't be undone.`)) {
       store.people = store.people.filter(x => x.id !== p.id);
+      store.deletedIds.push(p.id);
       save();
       location.hash = "#/";
     }
@@ -717,3 +802,4 @@ function renderEquipmentPage() {
 }
 
 route();
+syncPull().then(ok => { if (ok) route(); });
