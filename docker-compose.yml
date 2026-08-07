@@ -1,0 +1,15 @@
+services:
+  wildstar:
+    build: .
+    container_name: wildstar-gym
+    ports:
+      - "8080:8080"
+    environment:
+      # Change this passcode — every family device enters it once to sync.
+      FAMILY_KEY: "change-me"
+    volumes:
+      - wildstar-data:/data
+    restart: unless-stopped
+
+volumes:
+  wildstar-data:
