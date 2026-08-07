@@ -178,6 +178,7 @@ function buildAmelia30() {
     ],
     days,
     nutrition: {
+      proteinTarget: 140,
       headline: "A controlled cut: big enough deficit to see real change in 30 days, small enough to keep your glutes and strength. Realistic scale outcome: roughly 135–139 lb by Day 30 — leaner, more defined and stronger beats crash-dieting to 130.",
       targets: [
         ["Calories", "1,650–1,750 kcal"],

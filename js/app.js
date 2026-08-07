@@ -549,7 +549,7 @@ function renderDashboard(p, tab) {
   });
 
   document.getElementById("tab-body").addEventListener("keydown", ev => {
-    if (ev.key === "Enter" && (ev.target.id === "food-text" || ev.target.id === "food-kcal")) {
+    if (ev.key === "Enter" && ["food-text", "food-kcal", "food-prot"].includes(ev.target.id)) {
       ev.preventDefault();
       addFoodEntry(p);
     }
@@ -741,22 +741,30 @@ function trainingTab(p) {
 
 // ── Daily food log ───────────────────────────────────────────────────────────
 
-// Estimate calories from free text using the FOOD_KCAL table.
-// "2 eggs and toast" → 2×75 + 80. Returns null if nothing matches.
-function estimateKcal(text) {
+// Estimate calories + protein from free text using the FOOD_DB table.
+// "2 eggs and toast" → {kcal: 230, prot: 15}. Returns null if nothing matches.
+function estimateFood(text) {
   let t = " " + text.toLowerCase() + " ";
-  let total = 0, matched = false;
-  const keys = Object.keys(FOOD_KCAL).sort((a, b) => b.length - a.length);
+  let kcal = 0, prot = 0, matched = false;
+  const keys = Object.keys(FOOD_DB).sort((a, b) => b.length - a.length);
   for (const key of keys) {
     const rx = new RegExp(`(\\d+)?\\s*\\b${key.replace(/ /g, "\\s+")}s?\\b`);
     const m = t.match(rx);
     if (!m) continue;
     matched = true;
     const count = Math.min(10, Number(m[1]) || 1);
-    total += count * FOOD_KCAL[key];
+    kcal += count * FOOD_DB[key][0];
+    prot += count * FOOD_DB[key][1];
     t = t.replace(rx, " ");
   }
-  return matched ? total : null;
+  return matched ? { kcal, prot } : null;
+}
+
+// Daily protein target in grams.
+function protTargetFor(p) {
+  const prog = p.program && typeof PROGRAMS !== "undefined" && PROGRAMS[p.program];
+  if (prog && prog.nutrition && prog.nutrition.proteinTarget) return prog.nutrition.proteinTarget;
+  return (p.diet && p.diet.protein) || Math.round((Number(p.weight) || 70) * 1.6);
 }
 
 // Today's calorie target: the program day's target if on a program, else the diet plan.
@@ -782,26 +790,32 @@ function foodCard(p) {
   const iso = todayISO();
   const entries = foodEntries(p, iso);
   const target = kcalTargetFor(p);
+  const protTarget = protTargetFor(p);
 
   const known = entries.filter(e => e.kcal != null);
   const unknown = entries.filter(e => e.kcal == null);
   const total = known.reduce((s, e) => s + e.kcal, 0);
+  const protTotal = entries.reduce((s, e) => s + (e.prot || 0), 0);
   const anyEst = known.some(e => e.est);
   const pct = Math.min(100, Math.round((total / target) * 100));
+  const protPct = Math.min(100, Math.round((protTotal / protTarget) * 100));
   const over = total > target;
 
   const rows = entries.map(e => `
     <tr class="food-row">
       <td class="food-name">${esc(e.t)}</td>
       <td class="food-kcal">${e.kcal == null ? "—" : `${e.est ? "~" : ""}${e.kcal.toLocaleString()}`}</td>
+      <td class="food-prot">${e.prot == null ? "—" : `${e.est ? "~" : ""}${e.prot} g`}</td>
       <td class="food-del-cell"><button class="food-del" data-id="${e.id}" aria-label="Remove ${esc(e.t)}">&times;</button></td>
     </tr>`).join("");
 
   const weekRows = [];
   for (let i = 1; i <= 3; i++) {
     const d = addDays(new Date(), -i);
-    const dayEntries = (p.food[isoOf(d)] || []).filter(e => e.kcal != null);
-    if (dayEntries.length) weekRows.push(`${fmtDate(d)}: ${dayEntries.reduce((s, e) => s + e.kcal, 0).toLocaleString()} kcal`);
+    const dayEntries = (p.food[isoOf(d)] || []);
+    const dayKcal = dayEntries.filter(e => e.kcal != null).reduce((s, e) => s + e.kcal, 0);
+    const dayProt = dayEntries.reduce((s, e) => s + (e.prot || 0), 0);
+    if (dayEntries.length) weekRows.push(`${fmtDate(d)}: ${dayKcal.toLocaleString()} kcal · ${dayProt} g`);
   }
 
   return `
@@ -809,10 +823,15 @@ function foodCard(p) {
       <h3>Today's food</h3>
       <div class="food-input-row">
         <input id="food-text" type="text" placeholder="What did you eat? e.g. 2 eggs and toast" autocomplete="off">
-        <input id="food-kcal" type="number" min="0" max="5000" placeholder="kcal (optional)">
+        <input id="food-kcal" type="number" min="0" max="5000" placeholder="kcal">
+        <input id="food-prot" type="number" min="0" max="400" placeholder="protein g">
         <button class="btn primary small" id="food-add">Add</button>
       </div>
-      ${entries.length ? `<table class="ex-table food-table">${rows}</table>` : `<p class="food-empty">Nothing logged yet today. Type what you ate — if you skip the calories, the app makes a rough guess (shown with a ~).</p>`}
+      ${entries.length ? `
+      <table class="ex-table food-table">
+        <tr class="food-head"><td></td><td class="food-kcal">kcal</td><td class="food-prot">protein</td><td></td></tr>
+        ${rows}
+      </table>` : `<p class="food-empty">Nothing logged yet today. Type what you ate — skip the numbers and the app makes a rough guess at calories and protein (shown with a ~).</p>`}
       <div class="food-total-bar" role="img" aria-label="${total} of ${target} kcal">
         <span style="width:${pct}%;background:${over ? "var(--plate-red)" : "var(--plate-green)"}"></span>
       </div>
@@ -820,6 +839,12 @@ function foodCard(p) {
         <strong>${anyEst ? "≈ " : ""}${total.toLocaleString()}</strong> / ${target.toLocaleString()} kcal
         ${unknown.length ? ` · ${unknown.length} item${unknown.length > 1 ? "s" : ""} not counted` : ""}
         ${over ? " · over target" : ""}
+      </p>
+      <div class="food-total-bar prot-bar" role="img" aria-label="${protTotal} of ${protTarget} grams protein">
+        <span style="width:${protPct}%;background:var(--plate-red)"></span>
+      </div>
+      <p class="food-total">
+        <strong>${anyEst ? "≈ " : ""}${protTotal} g</strong> / ${protTarget} g protein${protTotal >= protTarget ? " · target hit 💪" : ""}
       </p>
       ${weekRows.length ? `<p class="food-week">${weekRows.join(" · ")}</p>` : ""}
     </div>`;
@@ -964,17 +989,22 @@ function nutritionTab(p) {
 function addFoodEntry(p) {
   const textEl = document.getElementById("food-text");
   const kcalEl = document.getElementById("food-kcal");
+  const protEl = document.getElementById("food-prot");
   const t = textEl.value.trim();
   if (!t) { textEl.focus(); return; }
   let kcal = kcalEl.value !== "" ? Math.max(0, Math.round(Number(kcalEl.value))) : null;
+  let prot = protEl.value !== "" ? Math.max(0, Math.round(Number(protEl.value))) : null;
   let est = false;
-  if (kcal == null) {
-    const guess = estimateKcal(t);
-    if (guess != null) { kcal = guess; est = true; }
+  if (kcal == null || prot == null) {
+    const guess = estimateFood(t);
+    if (guess) {
+      if (kcal == null) { kcal = guess.kcal; est = true; }
+      if (prot == null) { prot = guess.prot; est = true; }
+    }
   }
   foodEntries(p, todayISO()).push({
     id: "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    t, kcal, est,
+    t, kcal, prot, est,
   });
   save();
   renderDashboard(p, "nutrition");

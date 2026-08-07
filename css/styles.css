@@ -613,7 +613,24 @@ h3 {
 }
 .food-input-row input:focus { outline: none; border-color: var(--ink); }
 #food-text { flex: 1; min-width: 0; }
-#food-kcal { width: 110px; flex: none; }
+#food-kcal { width: 90px; flex: none; }
+#food-prot { width: 100px; flex: none; }
+.food-prot {
+  font-family: var(--mono);
+  font-size: 14px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.food-head td {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink-soft);
+  padding-bottom: 2px;
+}
+.prot-bar { margin-top: 12px; }
 .food-input-row .btn { flex: none; }
 
 .food-table { margin-bottom: 14px; }
@@ -645,7 +662,7 @@ h3 {
 @media (max-width: 560px) {
   .food-input-row { flex-wrap: wrap; }
   #food-text { flex: 1 1 100%; }
-  #food-kcal { flex: 1; width: auto; }
+  #food-kcal, #food-prot { flex: 1; width: auto; }
 }
 
 .meal-table { width: 100%; border-collapse: collapse; }
